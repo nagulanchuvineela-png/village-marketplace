@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VillageWholesale – Buyer Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #090e1a;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1f2d45;
+      --accent: #3b82f6;
+      --accent2: #06b6d4;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --text: #f0f6ff;
+      --muted: #6b7280;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+    }
+    h1, h2, h3, .mono { font-family: 'Space Mono', monospace; }
+
+    /* Gradient mesh background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(59,130,246,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 20% 80%, rgba(6,182,212,0.06) 0%, transparent 60%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Nav ── */
+    .navbar {
+      background: rgba(9,14,26,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo-text { font-family: 'Space Mono', monospace; font-size: 1.1rem; font-weight: 700; }
+    .logo-accent { color: var(--accent2); }
+
+    /* ── Status pill ── */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; font-weight: 600;
+      padding: 4px 12px; border-radius: 50px;
+      border: 1px solid var(--border);
+      font-family: 'Space Mono', monospace;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; animation: blink 1.8s infinite; }
+    .dot.green { background: var(--green); }
+    .dot.red { background: #ef4444; animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; padding: 24px; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+    @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      height: max-content;
+      position: sticky;
+      top: 80px;
+    }
+    .sidebar-title { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+
+    /* ── Price Board ── */
+    .price-board { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+    .price-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      transition: border-color 0.2s;
+    }
+    .price-row:hover { border-color: var(--accent); }
+    .crop-name { font-size: 0.85rem; font-weight: 500; }
+    .crop-price { font-family: 'Space Mono', monospace; font-size: 0.85rem; color: var(--green); }
+
+    /* ── Filter ── */
+    .filter-group { margin-bottom: 16px; }
+    .filter-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 8px; font-family: 'Space Mono', monospace; }
+    .filter-select, .filter-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 12px; color: var(--text);
+      font-family: 'Outfit', sans-serif; font-size: 0.9rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    .filter-select:focus, .filter-input:focus { border-color: var(--accent); }
+
+    /* ── Main Content ── */
+    .main-content { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Stats Row ── */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px;
+      text-align: center;
+    }
+    .stat-num { font-family: 'Space Mono', monospace; font-size: 1.6rem; font-weight: 700; }
+    .stat-num.blue { color: var(--accent); }
+    .stat-num.gold { color: var(--gold); }
+    .stat-num.green { color: var(--green); }
+    .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Listings ── */
+    .listings-header { display: flex; align-items: center; justify-content: space-between; }
+    .listings-title { font-family: 'Space Mono', monospace; font-size: 1rem; }
+
+    .listing-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+    .listing-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(59,130,246,0.12);
+    }
+    .listing-card.new-flash {
+      animation: flash 0.6s ease;
+    }
+    @keyframes flash {
+      0%, 100% { border-color: var(--border); }
+      50% { border-color: var(--green); box-shadow: 0 0 20px rgba(16,185,129,0.3); }
+    }
+
+    .listing-emoji { font-size: 2rem; margin-right: 14px; }
+    .listing-crop { font-family: 'Space Mono', monospace; font-size: 0.95rem; font-weight: 700; color: var(--accent2); }
+    .listing-village { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .listing-detail { font-size: 0.85rem; color: var(--text); margin-top: 8px; }
+    .listing-price { font-family: 'Space Mono', monospace; font-size: 1.2rem; color: var(--green); font-weight: 700; }
+
+    .btn-negotiate {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white; border: none;
+      font-family: 'Space Mono', monospace; font-weight: 700; font-size: 0.78rem;
+      padding: 10px 18px; border-radius: 10px; cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .btn-negotiate:hover { opacity: 0.85; transform: scale(1.03); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+    }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 28px; width: 100%; max-width: 440px;
+      animation: modal-in 0.3s ease;
+    }
+    @keyframes modal-in { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:none; } }
+    .modal-title { font-family: 'Space Mono', monospace; font-size: 1rem; margin-bottom: 20px; }
+    .modal-input {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px; color: var(--text);
+      font-family: 'Outfit', sans-serif; font-size: 0.95rem;
+      outline: none; margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .modal-input:focus { border-color: var(--accent); }
+    .modal-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 6px; font-family: 'Space Mono', monospace; }
+    .btn-submit {
+      width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white; border: none; padding: 13px; border-radius: 10px;
+      font-family: 'Space Mono', monospace; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s; margin-top: 4px;
+    }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-cancel { width: 100%; background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 10px; border-radius: 10px; font-family: 'Space Mono', monospace; cursor: pointer; margin-top: 8px; }
+    .btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ── Empty State ── */
+    .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+    .empty i { font-size: 2.5rem; margin-bottom: 12px; display: block; opacity: 0.4; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--green); color: white;
+      font-family: 'Space Mono', monospace; font-size: 0.8rem;
+      padding: 12px 20px; border-radius: 10px; z-index: 999;
+      animation: toast-up 0.3s ease, toast-fade 0.3s ease 2.7s forwards;
+    }
+    @keyframes toast-up { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform:none; } }
+    @keyframes toast-fade { to { opacity:0; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="logo-text">Village<span class="logo-accent">Wholesale</span></div>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div class="status-pill">
+          <span class="dot" :class="connected ? 'green' : 'red'"></span>
+          {{ connected ? 'LIVE' : 'OFFLINE' }}
+        </div>
+      </div>
+    </nav>
+
+    <div class="layout">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <!-- Live Prices -->
+        <div class="sidebar-title">📊 Live Mandi Prices</div>
+        <div class="price-board">
+          <div class="price-row" v-for="(entry, crop) in allPrices" :key="crop">
+            <span class="crop-name">{{ cropEmoji[crop] }} {{ capitalize(crop) }}</span>
+            <span class="crop-price">₹{{ entry.price }}/kg</span>
+          </div>
+          <div v-if="Object.keys(allPrices).length === 0" style="font-size:0.8rem; color: var(--muted); text-align:center; padding:12px 0;">
+            Waiting for prices...
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="sidebar-title">🔍 Filter Listings</div>
+        <div class="filter-group">
+          <label class="filter-label">Crop</label>
+          <select class="filter-select" v-model="filterCrop">
+            <option value="">All Crops</option>
+            <option v-for="c in crops" :value="c" :key="c">{{ cropEmoji[c] }} {{ capitalize(c) }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Max Price (₹/kg)</label>
+          <input class="filter-input" type="number" v-model.number="filterMaxPrice" placeholder="e.g. 30" />
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="main-content">
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-num blue">{{ filteredListings.length }}</div>
+            <div class="stat-label">Active Listings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num gold">{{ Object.keys(allPrices).length }}</div>
+            <div class="stat-label">Crops Tracked</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num green">{{ offersSent }}</div>
+            <div class="stat-label">Offers Sent</div>
+          </div>
+        </div>
+
+        <!-- Listings -->
+        <div>
+          <div class="listings-header" style="margin-bottom:14px;">
+            <span class="listings-title">Active Listings</span>
+            <span style="font-size:0.8rem; color:var(--muted);">Updates live via WebSocket</span>
+          </div>
+
+          <div v-if="filteredListings.length === 0" class="empty">
+            <i class="fa-solid fa-box-open"></i>
+            <div style="font-family: Space Mono, monospace; font-weight:700; margin-bottom:6px;">No listings yet</div>
+            <div style="font-size:0.85rem;">Farmers will post listings here — they appear instantly</div>
+          </div>
+
+          <!-- Listing Cards -->
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div
+              class="listing-card"
+              :class="{ 'new-flash': listing._new }"
+              v-for="listing in filteredListings"
+              :key="listing.id"
+            >
+              <div style="display:flex; align-items:flex-start; flex:1; gap:14px;">
+                <span class="listing-emoji">{{ cropEmoji[listing.crop_name] || '🌿' }}</span>
+                <div style="flex:1;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div class="listing-crop">{{ capitalize(listing.crop_name) }}</div>
+                    <span v-if="listing.transport_available" style="background:#064e3b; color:#6ee7b7; font-size:0.7rem; padding:2px 8px; border-radius:50px; font-family:'Space Mono',monospace; white-space:nowrap;">🚛 Delivery available</span>
+                    <span v-else style="background:#3b1515; color:#fca5a5; font-size:0.7rem; padding:2px 8px; border-radius:50px; font-family:'Space Mono',monospace; white-space:nowrap;">📦 Pickup only</span>
+                  </div>
+                  <div class="listing-village">📍 {{ listing.village }} · by {{ listing.farmer_name }}</div>
+                  <div class="listing-detail" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:16px;">
+                    <span><i class="fa-solid fa-weight-hanging" style="margin-right:5px; opacity:0.6;"></i>{{ listing.quantity_kg }} kg</span>
+                    <span v-if="listing.phone">
+                      <i class="fa-solid fa-phone" style="margin-right:5px; color:#06b6d4;"></i>
+                      <a :href="'tel:' + listing.phone" style="color:#06b6d4; text-decoration:none; font-family:'Space Mono',monospace;">{{ listing.phone }}</a>
+                    </span>
+                  </div>
+                  <div v-if="listing.address" style="margin-top:5px; font-size:0.78rem; color:var(--muted);">
+                    <i class="fa-solid fa-location-dot" style="margin-right:5px; color:#f59e0b;"></i>{{ listing.address }}
+                  </div>
+                  <div v-if="listing.transport_available && listing.transport_details" style="margin-top:5px; font-size:0.78rem; color:#6ee7b7;">
+                    <i class="fa-solid fa-truck" style="margin-right:5px;"></i>{{ listing.transport_details }}
+                  </div>
+                  <div class="listing-price" style="margin-top:8px;">₹{{ listing.price_per_kg }}/kg</div>
+                </div>
+              </div>
+              <button class="btn-negotiate" @click="openModal(listing)" style="flex-shrink:0;">NEGOTIATE<br>& BUY</button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Negotiate Modal -->
+    <div class="modal-overlay" v-if="modalListing" @click.self="closeModal">
+      <div class="modal">
+        <div class="modal-title">💬 Send Offer</div>
+        <div style="background:var(--surface2); border-radius:10px; padding:14px 16px; margin-bottom:20px; font-size:0.85rem; display:flex; flex-direction:column; gap:8px;">
+          <div>
+            <strong style="font-family:'Space Mono',monospace; color:var(--accent2);">{{ capitalize(modalListing.crop_name) }}</strong>
+            <span style="color:var(--muted);"> · {{ modalListing.quantity_kg }}kg · </span>
+            <strong style="color:#10b981;">₹{{ modalListing.price_per_kg }}/kg</strong>
+          </div>
+          <div style="color:var(--muted); font-size:0.8rem;">
+            🌾 {{ modalListing.farmer_name }} &nbsp;·&nbsp; 📍 {{ modalListing.village }}
+          </div>
+          <div v-if="modalListing.address" style="font-size:0.78rem; color:var(--muted);">
+            <i class="fa-solid fa-location-dot" style="color:#f59e0b; margin-right:4px;"></i>{{ modalListing.address }}
+          </div>
+          <div v-if="modalListing.phone" style="font-size:0.82rem;">
+            <i class="fa-solid fa-phone" style="color:#06b6d4; margin-right:6px;"></i>
+            <a :href="'tel:' + modalListing.phone" style="color:#06b6d4; text-decoration:none; font-family:'Space Mono',monospace;">{{ modalListing.phone }}</a>
+            <span style="color:var(--muted); font-size:0.72rem; margin-left:8px;">Tap to call</span>
+          </div>
+          <div style="border-top:1px solid var(--border); padding-top:8px; margin-top:2px;">
+            <span v-if="modalListing.transport_available" style="color:#6ee7b7; font-size:0.8rem;">
+              <i class="fa-solid fa-truck" style="margin-right:5px;"></i>
+              {{ modalListing.transport_details || 'Farmer can deliver' }}
+            </span>
+            <span v-else style="color:#fca5a5; font-size:0.8rem;">
+              <i class="fa-solid fa-box" style="margin-right:5px;"></i>Pickup only — you must arrange transport
+            </span>
+          </div>
+        </div>
+        <div>
+          <label class="modal-label">Your Name</label>
+          <input class="modal-input" v-model="offer.buyer_name" placeholder="e.g. Amit Traders" />
+        </div>
+        <div>
+          <label class="modal-label">Your Offered Price (₹/kg)</label>
+          <input class="modal-input" type="number" v-model.number="offer.offered_price" :placeholder="`e.g. ${modalListing.price_per_kg - 2}`" />
+        </div>
+        <div>
+          <label class="modal-label">Quantity you want (kg)</label>
+          <input class="modal-input" type="number" v-model.number="offer.quantity_kg" :placeholder="`Max ${modalListing.quantity_kg}`" />
+        </div>
+        <button class="btn-submit" @click="sendOffer" :disabled="submitting">
+          {{ submitting ? 'Sending...' : '⚡ Send Offer to Farmer' }}
+        </button>
+        <button class="btn-cancel" @click="closeModal">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" v-if="toast">{{ toast }}</div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, reactive } = Vue;
+    const BACKEND = "http://localhost:8000";
+    const CROPS = ["tomato","onion","potato","wheat","rice","brinjal","carrot"];
+    const CROP_EMOJI = { tomato:"🍅", onion:"🧅", potato:"🥔", wheat:"🌾", rice:"🍚", brinjal:"🍆", carrot:"🥕" };
+
+    createApp({
+      setup() {
+        const connected = ref(false);
+        const allPrices = ref({});
+        const listings = ref([]);
+        const filterCrop = ref("");
+        const filterMaxPrice = ref(null);
+        const offersSent = ref(0);
+        const toast = ref(null);
+        const modalListing = ref(null);
+        const submitting = ref(false);
+        const offer = reactive({ buyer_name: "", offered_price: null, quantity_kg: null });
+
+        const crops = CROPS;
+        const cropEmoji = CROP_EMOJI;
+
+        const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+        const filteredListings = computed(() => {
+          return listings.value.filter(l => {
+            if (filterCrop.value && l.crop_name !== filterCrop.value) return false;
+            if (filterMaxPrice.value && l.price_per_kg > filterMaxPrice.value) return false;
+            return true;
+          });
+        });
+
+        const showToast = (msg) => {
+          toast.value = msg;
+          setTimeout(() => toast.value = null, 3000);
+        };
+
+        const openModal = (listing) => {
+          modalListing.value = listing;
+          offer.buyer_name = "";
+          offer.offered_price = listing.price_per_kg - 2;
+          offer.quantity_kg = listing.quantity_kg;
+        };
+        const closeModal = () => { modalListing.value = null; };
+
+        const sendOffer = async () => {
+          if (!offer.buyer_name || !offer.offered_price || !offer.quantity_kg) {
+            alert("Please fill all fields."); return;
+          }
+          submitting.value = true;
+          try {
+            const res = await fetch(`${BACKEND}/negotiate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                listing_id: modalListing.value.id,
+                buyer_name: offer.buyer_name,
+                offered_price: offer.offered_price,
+                quantity_kg: offer.quantity_kg,
+              }),
+            });
+            if (res.ok) {
+              offersSent.value++;
+              closeModal();
+              showToast("✅ Offer sent to farmer!");
+            }
+          } catch {
+            alert("Cannot connect to backend. Is server running?");
+          }
+          submitting.value = false;
+        };
+
+        onMounted(async () => {
+          // Fetch initial data
+          try {
+            const [pricesRes, listingsRes] = await Promise.all([
+              fetch(`${BACKEND}/prices`),
+              fetch(`${BACKEND}/listings`),
+            ]);
+            const pricesData = await pricesRes.json();
+            const listingsData = await listingsRes.json();
+            allPrices.value = pricesData.prices || {};
+            listings.value = (listingsData.listings || []).map(l => ({ ...l, _new: false }));
+          } catch { /* backend not running */ }
+
+          // Socket.io
+          const socket = io(BACKEND);
+          socket.on("connect", () => connected.value = true);
+          socket.on("disconnect", () => connected.value = false);
+          socket.on("price:update", (data) => {
+            allPrices.value = { ...allPrices.value, [data.crop_name]: { price: data.price, updated_at: new Date().toISOString() } };
+          });
+          socket.on("listing:new", (listing) => {
+            listings.value = [{ ...listing, _new: true }, ...listings.value];
+            showToast(`🆕 New listing: ${capitalize(listing.crop_name)} from ${listing.village}`);
+            setTimeout(() => {
+              const item = listings.value.find(l => l.id === listing.id);
+              if (item) item._new = false;
+            }, 1200);
+          });
+          socket.on("offer:response", (data) => {
+            if (data.status === "accepted") {
+              showToast(`✅ Your offer was ACCEPTED by the farmer!`);
+            } else if (data.status === "declined") {
+              showToast(`❌ Your offer was declined by the farmer.`);
+            }
+          });
+        });
+
+        return { connected, allPrices, listings, filteredListings, filterCrop, filterMaxPrice, crops, cropEmoji, capitalize, offersSent, toast, modalListing, offer, submitting, openModal, closeModal, sendOffer };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
